@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CHANNEL_NAME } from '../App'
+import { supabase } from '../lib/supabase'
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -88,17 +89,71 @@ export default function GameView() {
   const [results, setResults] = useState([])           // booleans per question
   const [gameFinished, setGameFinished] = useState(false)
   const channelRef = useRef(null)
+  const [supabaseChannel, setSupabaseChannel] = useState(null)
+
+  const stateRef = useRef({ qIndex: 0, revealed: false, questions: [] })
+  useEffect(() => {
+    stateRef.current = { qIndex, revealed, questions: questionSet?.questions || [] }
+  }, [qIndex, revealed, questionSet])
+
+  const handleSelectRef = useRef(null)
 
   useEffect(() => {
     // Read question set from sessionStorage
     const raw = sessionStorage.getItem('questionario_set')
     if (raw) {
-      try { setQuestionSet(JSON.parse(raw)) } catch { /* ignore */ }
+      try { 
+        const qs = JSON.parse(raw)
+        setQuestionSet(qs) 
+        
+        if (qs.hexCode && supabase.supabaseUrl) {
+          const ch = supabase.channel(`game-${qs.hexCode}`)
+          ch.on('broadcast', { event: 'request_state' }, () => {
+            // will be handled by the effect below
+          })
+          ch.on('broadcast', { event: 'mobile_answer' }, (payload) => {
+            if (stateRef.current.revealed) return
+            if (handleSelectRef.current) {
+              handleSelectRef.current(payload.payload.index)
+            }
+          })
+          ch.subscribe()
+          setSupabaseChannel(ch)
+        }
+      } catch { /* ignore */ }
     }
     // Open broadcast channel
     channelRef.current = new BroadcastChannel(CHANNEL_NAME)
-    return () => channelRef.current?.close()
+    return () => {
+      channelRef.current?.close()
+      if (supabaseChannel) supabase.removeChannel(supabaseChannel)
+    }
   }, [])
+
+  useEffect(() => {
+    if (supabaseChannel && questionSet && !gameFinished) {
+      supabaseChannel.send({
+        type: 'broadcast',
+        event: 'sync_state',
+        payload: {
+          currentQ: questionSet.questions[qIndex],
+          revealed,
+          selected,
+          gameOver: false
+        }
+      })
+    }
+  }, [qIndex, revealed, selected, gameFinished, supabaseChannel, questionSet])
+
+  useEffect(() => {
+    if (gameFinished && supabaseChannel) {
+      supabaseChannel.send({
+        type: 'broadcast',
+        event: 'sync_state',
+        payload: { gameOver: true }
+      })
+    }
+  }, [gameFinished, supabaseChannel])
 
   if (!questionSet) {
     return (
@@ -128,7 +183,7 @@ export default function GameView() {
   const current = questions[qIndex]
   const progress = ((qIndex) / questions.length) * 100
 
-  const handleSelect = (i) => {
+  const handleSelect = useCallback((i) => {
     if (revealed) return
     setSelected(i)
     setRevealed(true)
@@ -152,7 +207,11 @@ export default function GameView() {
 
     // Short delay then show overlay
     setTimeout(() => setShowResult(true), 350)
-  }
+  }, [revealed, current, score, results, qIndex])
+
+  useEffect(() => {
+    handleSelectRef.current = handleSelect
+  }, [handleSelect])
 
   const handleContinue = () => {
     setShowResult(false)

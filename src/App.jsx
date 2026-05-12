@@ -7,6 +7,7 @@ import TeamSetupView from './views/TeamSetupView'
 import AdminLiveView from './views/AdminLiveView'
 import GameView from './views/GameView'
 import TeamGameView from './views/TeamGameView'
+import MobilePlayerView from './views/MobilePlayerView'
 import { StarsBg } from './components/StarsBg'
 import { ToastContainer } from './components/Toast'
 
@@ -14,9 +15,10 @@ import { ToastContainer } from './components/Toast'
 export const CHANNEL_NAME = 'questionario_game'
 
 // Detect which tab mode this window is
-const urlMode = new URLSearchParams(window.location.search).get('mode')
-const IS_GAME_TAB      = urlMode === 'game'
-const IS_TEAM_GAME_TAB = urlMode === 'teamgame'
+const urlParams = new URLSearchParams(window.location.search)
+const IS_GAME_TAB      = urlParams.get('mode') === 'game'
+const IS_TEAM_GAME_TAB = urlParams.get('mode') === 'teamgame'
+const IS_MOBILE_JOIN   = !!urlParams.get('join')
 
 export default function App() {
   // 'init' | 'builder' | 'dashboard' | 'mode-select' | 'team-setup' | 'admin-live'
@@ -46,6 +48,14 @@ export default function App() {
       <>
         <StarsBg />
         <TeamGameView />
+      </>
+    )
+  }
+  if (IS_MOBILE_JOIN) {
+    return (
+      <>
+        <StarsBg />
+        <MobilePlayerView />
       </>
     )
   }

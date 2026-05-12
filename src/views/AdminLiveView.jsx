@@ -1,5 +1,60 @@
 import { useState, useEffect, useRef } from 'react'
 import { CHANNEL_NAME } from '../App'
+import { QRCodeSVG } from 'qrcode.react'
+import { supabase } from '../lib/supabase'
+
+function MobileAccessControl({ questionSet, addToast }) {
+  const [isMobileActive, setIsMobileActive] = useState(false)
+  const hexCode = questionSet.hexCode
+  const joinUrl = hexCode ? `${window.location.origin}${window.location.pathname}?join=${hexCode}` : ''
+
+  const toggleMobileAccess = async () => {
+    if (!hexCode) {
+      addToast('Save this game to the database first to use Mobile Access.', 'error')
+      return
+    }
+    if (!supabase.supabaseUrl) {
+      addToast('Supabase is not configured.', 'error')
+      return
+    }
+
+    const newState = !isMobileActive
+    setIsMobileActive(newState)
+
+    try {
+      await supabase.from('games').update({ is_mobile_active: newState }).eq('short_code', hexCode)
+      addToast(newState ? 'Mobile access ON' : 'Mobile access OFF', 'info')
+    } catch (err) {
+      console.error(err)
+      setIsMobileActive(!newState)
+      addToast('Error updating mobile access.', 'error')
+    }
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+      <button 
+        className={`btn btn--sm ${isMobileActive ? 'btn--success' : 'btn--ghost'}`} 
+        onClick={toggleMobileAccess}
+        style={{ border: isMobileActive ? 'none' : '1px solid var(--c-border)' }}
+      >
+        📱 Mobile Access {isMobileActive ? 'ON' : 'OFF'}
+      </button>
+
+      {isMobileActive && hexCode && (
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 8 }}>
+          <div style={{ background: 'white', padding: 4, borderRadius: 4, display: 'flex' }}>
+            <QRCodeSVG value={joinUrl} size={40} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span className="text-xs text-muted">Join at:</span>
+            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{hexCode}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 // ──────────────────────────────────────────────
 //  SIMPLE GAME ADMIN VIEW
@@ -48,6 +103,7 @@ function SimpleAdminView({ questionSet, onBack, addToast }) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 36, flexWrap: 'wrap', gap: 12 }}>
           <div className="logo"><span className="logo__icon">🎯</span>Questionario</div>
+          <MobileAccessControl questionSet={questionSet} addToast={addToast} />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span className="badge badge--primary" style={{ animation: gameOver ? 'none' : 'pulse-ring 2s infinite' }}>
               {gameOver ? '🏁 Finished' : '🔴 Live'}
@@ -215,6 +271,7 @@ function TeamAdminView({ questionSet, teams, onBack, addToast }) {
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 36, flexWrap: 'wrap', gap: 12 }}>
           <div className="logo"><span className="logo__icon">🎯</span>Questionario</div>
+          <MobileAccessControl questionSet={questionSet} addToast={addToast} />
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span className="badge badge--success" style={{ animation: gameOver ? 'none' : 'pulse-ring 2s infinite' }}>
               {gameOver ? '🏁 Finished' : '⚔️ Live'}

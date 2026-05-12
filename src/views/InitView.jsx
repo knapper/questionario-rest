@@ -1,4 +1,5 @@
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 export default function InitView({ onLoad, onCreate, addToast }) {
   const fileRef = useRef()
@@ -21,6 +22,46 @@ export default function InitView({ onLoad, onCreate, addToast }) {
       }
     }
     reader.readAsText(file)
+  }
+
+  const [hexCode, setHexCode] = useState('')
+  const [isLoadingDb, setIsLoadingDb] = useState(false)
+
+  const handleLoadFromDb = async () => {
+    const code = hexCode.trim().toUpperCase()
+    if (!code || code.length !== 6) {
+      addToast('Please enter a valid 6-character code.', 'error')
+      return
+    }
+
+    setIsLoadingDb(true)
+    try {
+      if (!supabase.supabaseUrl) {
+        throw new Error('Supabase is not configured.')
+      }
+
+      const { data, error } = await supabase
+        .from('games')
+        .select('*')
+        .eq('short_code', code)
+        .single()
+
+      if (error || !data) {
+        throw new Error('Game not found or error loading.')
+      }
+
+      onLoad({
+        name: data.name,
+        questions: data.questions,
+        hexCode: data.short_code
+      })
+      
+    } catch (err) {
+      console.error(err)
+      addToast(err.message || 'Error loading game.', 'error')
+    } finally {
+      setIsLoadingDb(false)
+    }
   }
 
   return (
@@ -110,10 +151,46 @@ export default function InitView({ onLoad, onCreate, addToast }) {
               </div>
             </div>
           </div>
+          {/* Load from DB */}
+          <div className="card">
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 20 }}>
+              <div style={{
+                minWidth: 52, height: 52,
+                background: 'rgba(255,160,0,0.12)',
+                border: '1px solid rgba(255,160,0,0.25)',
+                borderRadius: 14,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: '1.6rem',
+              }}>☁️</div>
+              <div style={{ flex: 1 }}>
+                <h2 className="heading-md" style={{ marginBottom: 6 }}>Load by Code</h2>
+                <p className="text-muted text-sm" style={{ marginBottom: 12 }}>Load a saved game from the database.</p>
+                
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input 
+                    className="form-input" 
+                    placeholder="6-char code (e.g. A1B2C3)" 
+                    value={hexCode}
+                    onChange={e => setHexCode(e.target.value.toUpperCase())}
+                    maxLength={6}
+                    style={{ textTransform: 'uppercase', flex: 1 }}
+                    onKeyDown={e => e.key === 'Enter' && handleLoadFromDb()}
+                  />
+                  <button 
+                    className="btn btn--primary" 
+                    onClick={handleLoadFromDb}
+                    disabled={isLoadingDb || hexCode.length !== 6}
+                  >
+                    {isLoadingDb ? '...' : 'Load'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <p className="text-muted text-xs anim-fade-up" style={{ animationDelay: '0.3s', textAlign: 'center', marginTop: 36 }}>
-          Your questions never leave your browser — everything stays local.
+          Local files stay in your browser. Cloud games require Supabase setup.
         </p>
       </div>
     </div>

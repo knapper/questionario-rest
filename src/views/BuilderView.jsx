@@ -1,6 +1,11 @@
 import { useState } from 'react'
+import { supabase } from '../lib/supabase'
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
+
+function generateHexCode() {
+  return Math.random().toString(16).substring(2, 8).toUpperCase()
+}
 
 function getDefaultQuestion(type) {
   if (type === 'truefalse') {
@@ -227,19 +232,77 @@ function QuestionStep({ q, setQ, questionNumber, onBack, onSave }) {
 }
 
 // Finish prompt
-function FinishStep({ questionCount, onAddMore, onFinish }) {
+function FinishStep({ questionCount, onAddMore, onFinish, questions, setName, addToast }) {
+  const [isSaving, setIsSaving] = useState(false)
+  const [savedCode, setSavedCode] = useState(null)
+  const [errorMsg, setErrorMsg] = useState(null)
+
+  const handleSaveToDb = async () => {
+    setIsSaving(true)
+    setErrorMsg(null)
+    const code = generateHexCode()
+    try {
+      if (!supabase.supabaseUrl) {
+        throw new Error('Supabase is not configured yet. Set .env variables.')
+      }
+      
+      const { error } = await supabase.from('games').insert([
+        {
+          short_code: code,
+          name: setName,
+          questions: questions,
+          is_mobile_active: false,
+          current_state: {}
+        }
+      ])
+
+      if (error) throw error
+
+      setSavedCode(code)
+      addToast('Saved to database!', 'success')
+    } catch (err) {
+      console.error(err)
+      setErrorMsg(err.message || 'Error saving to database')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="anim-fade-up" style={{ textAlign: 'center' }}>
       <div style={{ fontSize: '3.5rem', marginBottom: 16 }}>🎉</div>
-      <h2 className="heading-lg" style={{ marginBottom: 8 }}>Question saved!</h2>
+      <h2 className="heading-lg" style={{ marginBottom: 8 }}>Questions Complete!</h2>
       <p className="text-muted" style={{ marginBottom: 32 }}>
-        You have <strong style={{ color: 'var(--c-text)' }}>{questionCount}</strong> question{questionCount !== 1 ? 's' : ''} in this set. What would you like to do?
+        You have <strong style={{ color: 'var(--c-text)' }}>{questionCount}</strong> question{questionCount !== 1 ? 's' : ''} in this set.
       </p>
+
+      {savedCode ? (
+        <div style={{ marginBottom: 24, padding: 20, background: 'rgba(0,229,160,0.1)', borderRadius: 12, border: '1px solid rgba(0,229,160,0.3)' }}>
+          <p style={{ color: 'var(--c-success)', fontWeight: 600, marginBottom: 8 }}>Successfully saved to database!</p>
+          <p className="text-sm text-muted" style={{ marginBottom: 12 }}>Your Access Code is:</p>
+          <div style={{ fontSize: '2.5rem', fontWeight: 800, letterSpacing: 4 }}>{savedCode}</div>
+          <p className="text-xs text-muted" style={{ marginTop: 12 }}>Share this code or use it to load this game later.</p>
+        </div>
+      ) : (
+        <div style={{ marginBottom: 24 }}>
+          <p className="text-sm" style={{ marginBottom: 12 }}>Would you like to save this game to the database for future use?</p>
+          {errorMsg && <p className="text-xs" style={{ color: 'var(--c-danger)', marginBottom: 12 }}>{errorMsg}</p>}
+          <button 
+            className="btn btn--ghost btn--full" 
+            onClick={handleSaveToDb}
+            disabled={isSaving}
+            style={{ border: '1px solid var(--c-primary)', color: 'var(--c-primary)', marginBottom: 12 }}
+          >
+            {isSaving ? 'Saving...' : '💾 Save & Generate Code'}
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <button id="btn-add-more" className="btn btn--primary btn--full btn--lg" onClick={onAddMore}>
+        <button id="btn-add-more" className="btn btn--primary btn--full btn--lg" onClick={onAddMore} disabled={isSaving}>
           ➕ Add Another Question
         </button>
-        <button id="btn-finish-set" className="btn btn--success btn--full btn--lg" onClick={onFinish}>
+        <button id="btn-finish-set" className="btn btn--success btn--full btn--lg" onClick={() => onFinish(savedCode)} disabled={isSaving}>
           ✅ Finish & Go to Dashboard
         </button>
       </div>
@@ -270,12 +333,12 @@ export default function BuilderView({ onFinish, addToast }) {
     setStep('type')
   }
 
-  const handleFinish = () => {
+  const handleFinish = (savedCode) => {
     if (questions.length === 0) {
       addToast('Add at least one question first.', 'error')
       return
     }
-    onFinish({ name: setName.trim(), questions })
+    onFinish({ name: setName.trim(), questions, hexCode: savedCode })
   }
 
   // Progress breadcrumb bar at top
@@ -327,6 +390,9 @@ export default function BuilderView({ onFinish, addToast }) {
               questionCount={questions.length}
               onAddMore={handleAddMore}
               onFinish={handleFinish}
+              questions={questions}
+              setName={setName.trim()}
+              addToast={addToast}
             />
           )}
         </div>

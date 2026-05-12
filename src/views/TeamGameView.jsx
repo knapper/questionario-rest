@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { CHANNEL_NAME } from '../App'
+import { supabase } from '../lib/supabase'
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F']
 
@@ -214,9 +215,16 @@ export default function TeamGameView() {
   const [showResult, setShowResult] = useState(false)
   const [results, setResults] = useState([])
   const [gameFinished, setGameFinished] = useState(false)
-  const [showCountdown, setShowCountdown] = useState(false)
   const [startingTeamIdx, setStartingTeamIdx] = useState(0)
   const channelRef = useRef(null)
+  const [supabaseChannel, setSupabaseChannel] = useState(null)
+
+  const stateRef = useRef({ qIndex: 0, revealed: false })
+  useEffect(() => {
+    stateRef.current = { qIndex, revealed }
+  }, [qIndex, revealed])
+
+  const handleSelectRef = useRef(null)
 
   useEffect(() => {
     const raw = sessionStorage.getItem('questionario_team_game')
@@ -234,11 +242,60 @@ export default function TeamGameView() {
         setScores(data.teams.map(() => 0))
         setStartingTeamIdx(startIdx)
         setShowCountdown(true)
+
+        if (data.questionSet.hexCode && supabase.supabaseUrl) {
+          const ch = supabase.channel(`game-${data.questionSet.hexCode}`)
+          ch.on('broadcast', { event: 'request_state' }, () => {
+            // will be handled by the effect below
+          })
+          ch.on('broadcast', { event: 'mobile_answer' }, (payload) => {
+            if (stateRef.current.revealed) return
+            if (handleSelectRef.current) {
+              handleSelectRef.current(payload.payload.index)
+            }
+          })
+          ch.subscribe()
+          setSupabaseChannel(ch)
+        }
       } catch { /* ignore */ }
     }
     channelRef.current = new BroadcastChannel(CHANNEL_NAME)
-    return () => channelRef.current?.close()
+    return () => {
+      channelRef.current?.close()
+      if (supabaseChannel) supabase.removeChannel(supabaseChannel)
+    }
   }, [])
+
+  useEffect(() => {
+    if (supabaseChannel && shuffledQuestions.length > 0 && !gameFinished && turns.length > 0) {
+      const currentQ = shuffledQuestions[qIndex]
+      const currentTurn = turns[qIndex]
+      const currentTeam = teams ? teams[currentTurn?.teamIdx] : null
+      
+      supabaseChannel.send({
+        type: 'broadcast',
+        event: 'sync_state',
+        payload: {
+          currentQ,
+          currentTurn,
+          currentTeamName: currentTeam?.name,
+          revealed,
+          selected,
+          gameOver: false
+        }
+      })
+    }
+  }, [qIndex, revealed, selected, gameFinished, supabaseChannel, shuffledQuestions, turns, teams])
+
+  useEffect(() => {
+    if (gameFinished && supabaseChannel) {
+      supabaseChannel.send({
+        type: 'broadcast',
+        event: 'sync_state',
+        payload: { gameOver: true }
+      })
+    }
+  }, [gameFinished, supabaseChannel])
 
   if (!questionSet || !teams) {
     return (
@@ -257,7 +314,7 @@ export default function TeamGameView() {
   const currentTeam = teams[currentTurn?.teamIdx]
   const progress = (qIndex / shuffledQuestions.length) * 100
 
-  const handleSelect = (i) => {
+  const handleSelect = useCallback((i) => {
     if (revealed) return
     setSelected(i)
     setRevealed(true)
@@ -284,7 +341,11 @@ export default function TeamGameView() {
     })
 
     setTimeout(() => setShowResult(true), 350)
-  }
+  }, [revealed, currentQ, scores, results, qIndex, currentTurn, currentTeam])
+
+  useEffect(() => {
+    handleSelectRef.current = handleSelect
+  }, [handleSelect])
 
   const handleContinue = () => {
     setShowResult(false)
