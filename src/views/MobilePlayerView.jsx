@@ -32,6 +32,12 @@ export default function MobilePlayerView() {
     }
   }, [hexCode])
 
+  useEffect(() => {
+    if (joined && channel && role === 'player' && playerName.trim()) {
+      channel.send({ type: 'broadcast', event: 'player_joined', payload: { name: playerName.trim() } })
+    }
+  }, [joined, channel, role, playerName])
+
   if (!supabase.supabaseUrl) {
     return <div className="page"><div className="container" style={{textAlign: 'center', marginTop: 40}}>Supabase is not configured.</div></div>
   }

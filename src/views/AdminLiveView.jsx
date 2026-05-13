@@ -6,8 +6,21 @@ import { supabase } from '../lib/supabase'
 function MobileAccessControl({ questionSet, addToast }) {
   const [isMobileActive, setIsMobileActive] = useState(false)
   const [showLargeQr, setShowLargeQr] = useState(false)
+  const [mobilePlayers, setMobilePlayers] = useState([])
   const hexCode = questionSet.hexCode
   const joinUrl = hexCode ? `${window.location.origin}${window.location.pathname}?join=${hexCode}` : ''
+
+  useEffect(() => {
+    if (!isMobileActive || !hexCode || !supabase.supabaseUrl) return
+    const ch = supabase.channel(`game-${hexCode}`)
+    ch.on('broadcast', { event: 'player_joined' }, (payload) => {
+      const name = payload.payload.name
+      setMobilePlayers(prev => prev.includes(name) ? prev : [...prev, name])
+      addToast(`${name} joined the game!`, 'info')
+    })
+    ch.subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [isMobileActive, hexCode, addToast])
 
   const toggleMobileAccess = async () => {
     if (!hexCode) {
@@ -65,6 +78,17 @@ function MobileAccessControl({ questionSet, addToast }) {
             >
               {joinUrl}
             </span>
+          </div>
+        </div>
+      )}
+
+      {isMobileActive && mobilePlayers.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.05)', padding: '8px 12px', borderRadius: 8 }}>
+          <span className="text-sm text-muted">Players:</span>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {mobilePlayers.map((p, i) => (
+              <span key={i} className="badge badge--primary">{p}</span>
+            ))}
           </div>
         </div>
       )}

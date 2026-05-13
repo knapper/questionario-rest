@@ -91,10 +91,10 @@ export default function GameView() {
   const channelRef = useRef(null)
   const [supabaseChannel, setSupabaseChannel] = useState(null)
 
-  const stateRef = useRef({ qIndex: 0, revealed: false, questions: [] })
+  const stateRef = useRef({ qIndex: 0, revealed: false, questions: [], selected: null, gameFinished: false })
   useEffect(() => {
-    stateRef.current = { qIndex, revealed, questions: questionSet?.questions || [] }
-  }, [qIndex, revealed, questionSet])
+    stateRef.current = { qIndex, revealed, questions: questionSet?.questions || [], selected, gameFinished }
+  }, [qIndex, revealed, questionSet, selected, gameFinished])
 
   const handleSelectRef = useRef(null)
 
@@ -109,7 +109,17 @@ export default function GameView() {
         if (qs.hexCode && supabase.supabaseUrl) {
           const ch = supabase.channel(`game-${qs.hexCode}`)
           ch.on('broadcast', { event: 'request_state' }, () => {
-            // will be handled by the effect below
+            const st = stateRef.current
+            ch.send({
+              type: 'broadcast',
+              event: 'sync_state',
+              payload: {
+                currentQ: st.questions[st.qIndex],
+                revealed: st.revealed,
+                selected: st.selected,
+                gameOver: st.gameFinished
+              }
+            })
           })
           ch.on('broadcast', { event: 'mobile_answer' }, (payload) => {
             if (stateRef.current.revealed) return
