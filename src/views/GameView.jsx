@@ -155,6 +155,37 @@ export default function GameView() {
     }
   }, [gameFinished, supabaseChannel])
 
+  const handleSelect = useCallback((i) => {
+    if (revealed || !questionSet) return
+    const current = questionSet.questions[qIndex]
+    setSelected(i)
+    setRevealed(true)
+
+    const correct = i === current.correctIndex
+    const earned = correct ? current.points : 0
+    const newScore = score + earned
+    const newResults = [...results, correct]
+
+    setResults(newResults)
+    setScore(newScore)
+
+    // Broadcast to admin
+    channelRef.current?.postMessage({
+      type: 'answer',
+      qIndex,
+      correct,
+      points: earned,
+      score: newScore,
+    })
+
+    // Short delay then show overlay
+    setTimeout(() => setShowResult(true), 350)
+  }, [revealed, questionSet, score, results, qIndex])
+
+  useEffect(() => {
+    handleSelectRef.current = handleSelect
+  }, [handleSelect])
+
   if (!questionSet) {
     return (
       <div className="page" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -183,35 +214,7 @@ export default function GameView() {
   const current = questions[qIndex]
   const progress = ((qIndex) / questions.length) * 100
 
-  const handleSelect = useCallback((i) => {
-    if (revealed) return
-    setSelected(i)
-    setRevealed(true)
 
-    const correct = i === current.correctIndex
-    const earned = correct ? current.points : 0
-    const newScore = score + earned
-    const newResults = [...results, correct]
-
-    setResults(newResults)
-    setScore(newScore)
-
-    // Broadcast to admin
-    channelRef.current?.postMessage({
-      type: 'answer',
-      qIndex,
-      correct,
-      points: earned,
-      score: newScore,
-    })
-
-    // Short delay then show overlay
-    setTimeout(() => setShowResult(true), 350)
-  }, [revealed, current, score, results, qIndex])
-
-  useEffect(() => {
-    handleSelectRef.current = handleSelect
-  }, [handleSelect])
 
   const handleContinue = () => {
     setShowResult(false)

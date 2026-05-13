@@ -297,25 +297,12 @@ export default function TeamGameView() {
     }
   }, [gameFinished, supabaseChannel])
 
-  if (!questionSet || !teams) {
-    return (
-      <div className="page" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
-        <p className="text-muted">Loading team game… Open this tab from the Admin Dashboard.</p>
-      </div>
-    )
-  }
-
-  if (gameFinished) {
-    return <FinalScreen teams={teams} scores={scores} results={results} />
-  }
-
-  const currentQ = shuffledQuestions[qIndex]
-  const currentTurn = turns[qIndex]
-  const currentTeam = teams[currentTurn?.teamIdx]
-  const progress = (qIndex / shuffledQuestions.length) * 100
-
   const handleSelect = useCallback((i) => {
-    if (revealed) return
+    if (revealed || !questionSet || !teams) return
+    const currentQ = shuffledQuestions[qIndex]
+    const currentTurn = turns[qIndex]
+    const currentTeam = teams[currentTurn?.teamIdx]
+
     setSelected(i)
     setRevealed(true)
 
@@ -341,11 +328,30 @@ export default function TeamGameView() {
     })
 
     setTimeout(() => setShowResult(true), 350)
-  }, [revealed, currentQ, scores, results, qIndex, currentTurn, currentTeam])
+  }, [revealed, shuffledQuestions, scores, results, qIndex, turns, teams, questionSet])
 
   useEffect(() => {
     handleSelectRef.current = handleSelect
   }, [handleSelect])
+
+  if (!questionSet || !teams) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <p className="text-muted">Loading team game… Open this tab from the Admin Dashboard.</p>
+      </div>
+    )
+  }
+
+  if (gameFinished) {
+    return <FinalScreen teams={teams} scores={scores} results={results} />
+  }
+
+  const currentQ = shuffledQuestions[qIndex]
+  const currentTurn = turns[qIndex]
+  const currentTeam = teams[currentTurn?.teamIdx]
+  const progress = (qIndex / shuffledQuestions.length) * 100
+
+
 
   const handleContinue = () => {
     setShowResult(false)
