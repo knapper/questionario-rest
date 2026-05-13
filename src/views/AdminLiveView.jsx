@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 
 function MobileAccessControl({ questionSet, addToast }) {
   const [isMobileActive, setIsMobileActive] = useState(false)
+  const [showLargeQr, setShowLargeQr] = useState(false)
   const hexCode = questionSet.hexCode
   const joinUrl = hexCode ? `${window.location.origin}${window.location.pathname}?join=${hexCode}` : ''
 
@@ -42,13 +43,66 @@ function MobileAccessControl({ questionSet, addToast }) {
       </button>
 
       {isMobileActive && hexCode && (
-        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.05)', padding: '4px 10px', borderRadius: 8 }}>
-          <div style={{ background: 'white', padding: 4, borderRadius: 4, display: 'flex' }}>
-            <QRCodeSVG value={joinUrl} size={40} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: 8 }}>
+          <div 
+            style={{ background: 'white', padding: 4, borderRadius: 4, display: 'flex', cursor: 'pointer', transition: 'transform 0.2s' }}
+            onClick={() => setShowLargeQr(true)}
+            title="Click to enlarge"
+            onMouseEnter={e => e.currentTarget.style.transform = 'scale(1.05)'}
+            onMouseLeave={e => e.currentTarget.style.transform = 'scale(1)'}
+          >
+            <QRCodeSVG value={joinUrl} size={42} />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span className="text-xs text-muted">Join at:</span>
-            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{hexCode}</span>
+            <span className="text-xs text-muted" style={{ marginBottom: 2 }}>Join game at:</span>
+            <span 
+              style={{ fontWeight: 600, fontSize: '0.85rem', userSelect: 'all', cursor: 'pointer', color: 'var(--c-primary)' }} 
+              onClick={() => {
+                navigator.clipboard.writeText(joinUrl)
+                addToast('Copied join link!', 'success')
+              }}
+              title="Click to copy"
+            >
+              {joinUrl}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Large QR Modal */}
+      {showLargeQr && (
+        <div 
+          className="result-overlay" 
+          style={{ zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          onClick={() => setShowLargeQr(false)}
+        >
+          <div 
+            className="result-bubble anim-bounce" 
+            style={{ background: 'white', padding: '40px 48px', borderRadius: 24, color: '#000', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 style={{ fontSize: '1.5rem', margin: 0, fontWeight: 700, color: '#333' }}>Scan to Join</h2>
+            <QRCodeSVG value={joinUrl} size={320} />
+            <div style={{ textAlign: 'center', marginTop: 10 }}>
+              <p style={{ margin: '0 0 8px 0', fontSize: '1rem', color: '#666', fontWeight: 600 }}>Or enter this code manually:</p>
+              <h2 style={{ fontSize: '3rem', margin: 0, fontWeight: 900, letterSpacing: 6, color: '#111' }}>{hexCode}</h2>
+            </div>
+            <p 
+              style={{ margin: 0, fontSize: '1rem', color: '#0056b3', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={() => {
+                navigator.clipboard.writeText(joinUrl)
+                addToast('Copied join link!', 'success')
+              }}
+            >
+              {joinUrl}
+            </p>
+            <button 
+              className="btn btn--ghost" 
+              onClick={() => setShowLargeQr(false)} 
+              style={{ color: '#333', border: '1px solid #ccc', marginTop: 12, width: '100%' }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
