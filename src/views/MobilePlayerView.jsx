@@ -8,6 +8,7 @@ export default function MobilePlayerView() {
   const hexCode = urlParams.get('join')?.toUpperCase()
   
   const [playerName, setPlayerName] = useState('')
+  const [role, setRole] = useState(null) // 'player' | 'spectator'
   const [joined, setJoined] = useState(false)
   const [gameState, setGameState] = useState(null)
   const [channel, setChannel] = useState(null)
@@ -48,24 +49,55 @@ export default function MobilePlayerView() {
               <span className="logo__icon">📱</span>Questionario
             </div>
             <h2 className="heading-md" style={{ marginBottom: 8 }}>Join Game: {hexCode}</h2>
-            <p className="text-muted text-sm" style={{ marginBottom: 24 }}>Enter your name to play.</p>
             
-            <input 
-              className="form-input" 
-              placeholder="Your Name" 
-              value={playerName}
-              onChange={e => setPlayerName(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && playerName.trim() && setJoined(true)}
-              style={{ marginBottom: 16 }}
-            />
-            
-            <button 
-              className="btn btn--primary btn--full btn--lg" 
-              disabled={!playerName.trim()}
-              onClick={() => setJoined(true)}
-            >
-              Join Game
-            </button>
+            {!role ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 24 }}>
+                <button 
+                  className="btn btn--primary btn--full btn--lg"
+                  onClick={() => setRole('player')}
+                >
+                  🎮 Join as Player
+                </button>
+                <button 
+                  className="btn btn--ghost btn--full btn--lg"
+                  onClick={() => {
+                    setRole('spectator')
+                    setJoined(true)
+                  }}
+                  style={{ border: '1px solid var(--c-border)' }}
+                >
+                  👀 Join as Spectator
+                </button>
+              </div>
+            ) : (
+              <div className="anim-fade-up" style={{ marginTop: 24 }}>
+                <p className="text-muted text-sm" style={{ marginBottom: 16 }}>Enter your name to play.</p>
+                <input 
+                  className="form-input" 
+                  placeholder="Your Name" 
+                  value={playerName}
+                  onChange={e => setPlayerName(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && playerName.trim() && setJoined(true)}
+                  style={{ marginBottom: 16 }}
+                  autoFocus
+                />
+                
+                <button 
+                  className="btn btn--primary btn--full btn--lg" 
+                  disabled={!playerName.trim()}
+                  onClick={() => setJoined(true)}
+                  style={{ marginBottom: 12 }}
+                >
+                  Start Playing
+                </button>
+                <button 
+                  className="btn btn--ghost btn--sm text-muted" 
+                  onClick={() => setRole(null)}
+                >
+                  ← Back
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -99,10 +131,10 @@ export default function MobilePlayerView() {
   const { currentQ, revealed, selected, currentTurn, currentTeamName } = gameState
 
   // In team mode, only the current turn member should ideally answer, but we'll let anyone answer and log who did it.
-  const isMyTurn = currentTurn ? currentTurn.memberName.toLowerCase() === playerName.toLowerCase() : true
+  const isMyTurn = currentTurn && role === 'player' ? currentTurn.memberName.toLowerCase() === playerName.toLowerCase() : true
   
   const handleSelect = (i) => {
-    if (revealed || !channel) return
+    if (revealed || !channel || role === 'spectator') return
     channel.send({
       type: 'broadcast',
       event: 'mobile_answer',
@@ -114,10 +146,10 @@ export default function MobilePlayerView() {
     <div className="page">
       <div className="container" style={{ maxWidth: 500, padding: 16 }}>
         {currentTurn && (
-          <div style={{ background: isMyTurn ? 'rgba(0,229,160,0.1)' : 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 12, marginBottom: 20, border: `1px solid ${isMyTurn ? 'var(--c-success)' : 'var(--c-border)'}` }}>
+          <div style={{ background: isMyTurn && role === 'player' ? 'rgba(0,229,160,0.1)' : 'rgba(255,255,255,0.05)', padding: 12, borderRadius: 12, marginBottom: 20, border: `1px solid ${isMyTurn && role === 'player' ? 'var(--c-success)' : 'var(--c-border)'}` }}>
             <p className="text-sm text-center">
               Current Turn: <strong>{currentTurn.memberName}</strong> ({currentTeamName})
-              {isMyTurn && <span style={{ display: 'block', color: 'var(--c-success)', marginTop: 4, fontWeight: 700 }}>It's your turn!</span>}
+              {isMyTurn && role === 'player' && <span style={{ display: 'block', color: 'var(--c-success)', marginTop: 4, fontWeight: 700 }}>It's your turn!</span>}
             </p>
           </div>
         )}
@@ -140,7 +172,7 @@ export default function MobilePlayerView() {
                   key={i}
                   className={cls}
                   onClick={() => handleSelect(i)}
-                  disabled={revealed}
+                  disabled={revealed || role === 'spectator'}
                   style={{ padding: '16px', fontSize: '1.1rem' }}
                 >
                   <span className="option-btn__letter">{LETTERS[i]}</span>
